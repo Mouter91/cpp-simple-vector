@@ -4,19 +4,20 @@
 #include <utility>
 
 template <typename Type>
-class array_ptr {
+class ArrayPtr {
 public:
 
-    explicit array_ptr(Type* ptr = nullptr) noexcept : ptr_(ptr) {}
+    explicit ArrayPtr(Type* ptr = nullptr) noexcept : ptr_(ptr) {}
+    ArrayPtr(size_t size) noexcept : ptr_(new Type[size]) {}
 
-    array_ptr(array_ptr& other) = delete;
-    array_ptr& operator=(array_ptr& other) = delete;
+    ArrayPtr(ArrayPtr& other) = delete;
+    ArrayPtr& operator=(ArrayPtr& other) = delete;
 
-    array_ptr(array_ptr&& other) : ptr_(other.ptr_) {
+    ArrayPtr(ArrayPtr&& other) : ptr_(other.ptr_) {
         other.ptr_ = nullptr;
     }
 
-    array_ptr& operator=(array_ptr&& other) {
+    ArrayPtr& operator=(ArrayPtr&& other) {
         if(this != &other) {
             delete [] ptr_;
             ptr_ = other.ptr_;
@@ -25,7 +26,7 @@ public:
         return *this;
     }
 
-    ~array_ptr() {
+    ~ArrayPtr() {
         delete [] ptr_;
     }
 

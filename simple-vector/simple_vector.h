@@ -26,22 +26,22 @@ public:
     SimpleVector() noexcept = default;
 
     explicit SimpleVector(size_t size)
-        : items(new Type[size]), size_(size), capacity_(size) {
+        : items(ArrayPtr<Type>(size)), size_(size), capacity_(size) {
         std::fill(items.get(), items.get() + size_, Type());
     }
 
     SimpleVector(size_t size, const Type& value)
-        : items(new Type[size]), size_(size), capacity_(size) {
+        : items(ArrayPtr<Type>(size)), size_(size), capacity_(size) {
         std::fill(items.get(), items.get() + size_, value);
     }
 
     SimpleVector(std::initializer_list<Type> init)
-        : items(new Type[init.size()]), size_(init.size()), capacity_(init.size()) {
+        : items(ArrayPtr<Type>(init.size())), size_(init.size()), capacity_(init.size()) {
         std::copy(init.begin(), init.end(), items.get());
     }
 
     SimpleVector(const SimpleVector& other)
-        : items(new Type[other.capacity_]), size_(other.size_), capacity_(other.capacity_) {
+        : items(ArrayPtr<Type>(other.capacity_)), size_(other.size_), capacity_(other.capacity_) {
         std::copy(other.items.get(), other.items.get() + size_, items.get());
     }
 
@@ -55,22 +55,40 @@ public:
         : items(new Type[proxy.GetCapacity()]), size_(0), capacity_(proxy.GetCapacity()) {}
 
     SimpleVector& operator=(const SimpleVector& other) {
-        if (this != &other) {
+        if (other.IsEmpty()) {
+            Clear();
+        }
+        else if (this != &other) {
             SimpleVector temp(other);
             swap(temp);
         }
         return *this;
     }
 
-    void PopBack() noexcept {
-        if (size_ > 0) {
-            --size_;
+    SimpleVector& operator=(SimpleVector&& other) noexcept {
+        if (this != &other) {
+            delete[] items.get();
+
+            items = std::move(other.items);
+            size_ = other.size_;
+            capacity_ = other.capacity_;
+
+            other.size_ = 0;
+            other.capacity_ = 0;
         }
+        return *this;
     }
+
+    void PopBack() noexcept {
+        assert(size_ > 0);
+        --size_;
+
+    }
+
 
     void Reserve(size_t new_capacity) {
         if (new_capacity > capacity_) {
-            array_ptr<Type> new_items(new Type[new_capacity]);
+            ArrayPtr<Type> new_items(new Type[new_capacity]);
 
             std::move(items.get(), items.get() + size_, new_items.get());
 
@@ -89,10 +107,7 @@ public:
     void PushBack(Type&& item) {
         if (size_ == capacity_) {
             size_t new_capacity = capacity_ == 0 ? 1 : capacity_ * 2;
-            array_ptr<Type> new_items(new Type[new_capacity]);
-            std::move(items.get(), items.get() + size_, new_items.get());
-            items = std::move(new_items);
-            capacity_ = new_capacity;
+            Reserve(new_capacity);
         }
         items[size_++] = std::move(item);
     }
@@ -100,18 +115,16 @@ public:
 
     Iterator Insert(ConstIterator pos, Type&& value) {
         size_t index = pos - begin();
+
         if (size_ == capacity_) {
             size_t new_capacity = capacity_ == 0 ? 1 : capacity_ * 2;
-            array_ptr<Type> new_items(new Type[new_capacity]);
-            std::move(items.get(), items.get() + index, new_items.get());
-            std::move(items.get() + index, items.get() + size_, new_items.get() + index + 1);
-            items = std::move(new_items);
-            capacity_ = new_capacity;
-        } else {
-            std::move_backward(begin() + index, end(), end() + 1);
+            Reserve(new_capacity);
         }
+
+        std::move_backward(begin() + index, end(), end() + 1);
         items[index] = std::move(value);
         ++size_;
+
         return begin() + index;
     }
 
@@ -164,7 +177,7 @@ public:
     void Resize(size_t new_size) {
         if (new_size > capacity_) {
             size_t new_capacity = new_size * 2;
-            array_ptr<Type> new_items(new Type[new_capacity]);
+            ArrayPtr<Type> new_items(new_capacity);
 
             std::move(items.get(), items.get() + size_, new_items.get());
 
@@ -180,7 +193,6 @@ public:
                 items[i] = Type();
             }
         }
-        // Обновляем размер
         size_ = new_size;
     }
 
@@ -210,7 +222,7 @@ public:
     }
 
 private:
-    array_ptr<Type> items; в
+    ArrayPtr<Type> items;
     size_t size_{0};
     size_t capacity_{0};
 };
@@ -221,7 +233,9 @@ ReserveProxyObj Reserve(size_t capacity_to_reserve) {
 
 template <typename Type>
 inline bool operator==(const SimpleVector<Type>& lhs, const SimpleVector<Type>& rhs) {
-    if (lhs.GetSize() != rhs.GetSize()) return false;
+    if (lhs.GetSize() != rhs.GetSize()) {
+        return false;
+    }
     return std::equal(lhs.begin(), lhs.end(), rhs.begin());
 }
 
